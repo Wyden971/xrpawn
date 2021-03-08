@@ -11,8 +11,8 @@ export type AvailableBlockTransactionType = Transaction | Security | Loan | User
 
 export type BlockVote = {
   voterAddress: string;
-  transaction: Transaction;
   value: string;
+  asValidator: boolean;
   signature: string;
 }
 
@@ -64,26 +64,27 @@ export class Block {
 
 
   getVotes() {
-    if (!this.hasValidVotes()) {
-      throw new Error('Invalid votes');
-    }
     return [...this.votes ?? []];
   }
 
-  hasValidVotes() {
-    for (const vote of this.votes) {
-      if (!this.isValidVote(vote))
-        return false;
+
+  hasValidVotes(blockchain: Blockchain) {
+    const votes = this.votes.filter((vote) => this.isValidVote(vote, blockchain));
+
+    if (votes.length < 3) {
+      console.warn('3 votes are required')
+      return false;
     }
+
     return true;
   }
 
-  getVoteHash(voterAddress: string, transaction: Transaction, value: string) {
-    return SHA256(`${voterAddress}${transaction.hash}${value}${this.hash}`).toString();
+  getVoteHash(voterAddress: string, value: string, asValidator: boolean) {
+    return SHA256(`${voterAddress}${asValidator}${value}`).toString();
   }
 
-  addVote(vote: BlockVote) {
-    if (this.isValidVote(vote)) {
+  addVote(vote: BlockVote, blockchain: Blockchain) {
+    if (this.isValidVote(vote, blockchain)) {
       const existingVote = this.votes.find((item) => item.voterAddress === vote.voterAddress);
       if (existingVote) {
         throw new Error('You cannot vote twice');
@@ -94,71 +95,78 @@ export class Block {
     }
   }
 
-  getValidatorHash() {
-    return SHA256(`${this.validatorAddress}${this.hash}`).toString();
-  }
-
-  isValidVote(vote: BlockVote) {
+  isValidVote(vote: BlockVote, blockchain: Blockchain | null) {
     const keyGen = BlockData.ec.keyFromPublic(vote.voterAddress, 'hex');
-    if (!vote.transaction)
+
+    if (this.calculateHash() !== vote.value)
       return false;
 
-    if (vote.transaction.toAddress !== Blockchain.escrow.publicKey)
+    const validVoteResult = keyGen.verify(this.getVoteHash(vote.voterAddress, vote.value, vote.asValidator), vote.signature);
+    if (!validVoteResult)
       return false;
 
-    if (this.getValidatorHash() !== vote.value)
-      return false;
+    const amount = (blockchain && blockchain.getBalanceOfAddress(vote.voterAddress)) ?? 1;
 
-    return keyGen.verify(this.getVoteHash(vote.voterAddress, vote.transaction, vote.value), vote.signature);
+    return (amount > 0);
   }
 
-  getVoteResult() {
-    const votes: {
-      [name: string]: BlockVote[],
-    } = {};
+  getVoteResult(blockchain: Blockchain) {
 
-    for (const vote of this.votes) {
-      if (!this.isValidVote(vote)) {
-        throw new Error('You cannot get the result with invalid vote');
-      }
-      votes[vote.value] = [...votes[vote.value], vote];
+    const votes = this.votes
+      .map((vote) => ({
+        ...vote,
+        balance: blockchain.getBalanceOfAddress(vote.voterAddress)
+      }))
+      .filter((item) => item.balance > 0);
+
+    if (votes.length < 3) {
+      throw new Error('The minimum vote is 3');
     }
 
+    ///A B B B C C C C C D A
 
-    const result = {
-      ok: [] as BlockVote[],
-      nok: [] as BlockVote[]
-    };
+    // 1A et 10B
+    // 10000 1000
 
-    const orderedVotes = Object.values(votes).sort((itemsA, itemsB) => {
-      if (itemsA.length < itemsB.length) {
-        return 1;
-      } else if (itemsA.length > itemsB.length) {
-        return -1;
-      } else {
-        return 0;
+
+    const limit = 10000000;
+    const total = votes.reduce((result, item) => result + item.balance, 0);
+
+    const hashes = votes.reduce((result, item) => {
+      return {
+        ...result,
+        [item.value]: [...(result[item.value] ?? []), ((item.balance / total) * limit)]
       }
+    }, {} as {
+      [name: string]: number[],
     });
 
-    result.ok = orderedVotes[0];
-    if (orderedVotes.length > 1) {
-      result.nok = orderedVotes.reduce((items, itemVotes) => ([...items, ...itemVotes]), []);
-    }
+    const orderedVotes = Object.keys(hashes).map((item) => {
+      const hashItem = hashes[item];
+      return ({
+        hash: item,
+        value: hashItem.length * hashItem.reduce((result, nextItem) => result + nextItem, 0)
+      })
+    })
+      .sort((itemsA, itemsB) => {
+        if (itemsA.value < itemsB.value) {
+          return 1;
+        } else if (itemsA.value > itemsB.value) {
+          return -1;
+        } else {
+          return 0;
+        }
+      })
 
-    return result;
+    return orderedVotes;
   }
 
-  vote(signingKey: EC.KeyPair, transaction: Transaction): BlockVote {
-    if (transaction.amount <= 0) {
-      throw new Error('You cannot vote without money');
-    }
-    if (!`${transaction.signature ?? ''}`.trim().length) {
-      throw new Error('You cannot vote without signed transaction');
-    }
-    this.mineBlock(Blockchain.difficulty);
+  vote(signingKey: EC.KeyPair): BlockVote {
     const voterAddress = signingKey.getPublic('hex');
-    const value = this.getValidatorHash();
-    const hash = this.getVoteHash(voterAddress, transaction, value)
+    const asValidator = (voterAddress === this.validatorAddress);
+
+    const value = this.calculateHash();
+    const hash = this.getVoteHash(voterAddress, value, asValidator)
     const signature = signingKey.sign(hash, 'base64').toDER('hex')
     const existingVote = this.votes.find((item) => item.voterAddress === voterAddress);
 
@@ -169,16 +177,15 @@ export class Block {
     return {
       voterAddress,
       signature,
-      transaction,
-      value
+      value,
+      asValidator
     }
   }
 
   calculateHash(includeVotes: boolean = false) {
-    const transactions = this.transactions.map((transaction) => {
-      Block.definePrototypeOfTransaction(transaction);
-    });
-    return SHA256(`${this.index}${this.previousHash}${this.timestamp}${this.validatorAddress}${includeVotes ? JSON.stringify(this.votes) : ''}${JSON.stringify(transactions)}${this.nonce}`).toString();
+    const transactions = this.transactions.map((transaction) => Block.definePrototypeOfTransaction(transaction));
+
+    return SHA256(`${this.index}${this.previousHash}${this.timestamp}${this.validatorAddress}${includeVotes ? JSON.stringify(this.votes) : ''}${JSON.stringify(transactions)}${includeVotes ? this.nonce : ''}`).toString();
   }
 
   mineBlock(difficulty: number, includeVotes: boolean = false) {
@@ -187,7 +194,7 @@ export class Block {
       this.nonce++;
       this.hash = this.calculateHash(includeVotes);
     }
-    console.log('Mined block : ', this.index, this.hash);
+    console.log('Mined block : ', this.index, this.hash, includeVotes);
   }
 
   isCorrectHash(difficulty: number) {
@@ -201,22 +208,34 @@ export class Block {
   hasValidSignature() {
     const publicKey = BlockData.ec.keyFromPublic(this.validatorAddress, 'hex');
     if (!this.signature?.length) {
+      console.warn('no signature');
       return false;
     }
-    return publicKey.verify(this.calculateHash(true), this.signature!);
+    const result = publicKey.verify(this.calculateHash(true), this.signature!);
+    if (!result) {
+      console.warn('Bad signature');
+    }
+    return result;
   }
 
   isValid(difficulty: number) {
     const result = (this.isCorrectHash(difficulty) && this.isValidHash(!!this.signature?.length));
 
-    if (!this.signature?.length)
+    if (!this.signature?.length) {
+      if (!result)
+        console.warn('not signed');
       return result;
+    }
 
-    if (!result)
+    if (!result) {
+      console.log('incorrect hash');
       return false;
+    }
 
-    if (this.signature?.length && !this.votes.length)
+    if (this.signature?.length && !this.votes.length) {
+      console.warn('no votes');
       return false;
+    }
 
     return this.hasValidSignature();
   }
@@ -235,46 +254,15 @@ export class Block {
       throw new Error('You cannot sign transaction for other validator');
     }
 
-    if (!this.isValidHash()) {
+    if (!this.isValidHash(this.index > 0)) {
       throw new Error('The block cannot be signed');
     }
 
-    if (this.signature) {
-      throw new Error('You cannot sign the block twice');
+    if (this.signature && !signingKey.verify(this.hash, this.signature)) {
+      throw new Error('You cannot sign the block you are not a validator');
     }
 
-
-    if (this.votes.length < 3) {
-      throw new Error('You cannot sign the block with only 3 votes');
-    }
-
-    const result = this.getVoteResult();
-
-    if (result.ok.length <= result.nok.length) {
-      throw new Error('The block is not valid');
-    }
-
-    const transactions = [] as Transaction[];
-
-    for (const vote of result.nok) {
-      transactions.push(vote.transaction);
-    }
-
-    const totalToShare = transactions.reduce((result, tx) => result + tx.amount, 0);
-    const total = result.ok.reduce((result, vote) => result + vote.transaction.amount, 0);
-
-    for (const vote of result.ok) {
-      if (vote.voterAddress === signingKey.getPublic('hex'))
-        continue;
-
-      const part = (vote.transaction.amount / total);
-      const reward = part * totalToShare;
-      const newTransaction = new Transaction(signingKey.getPublic('hex'), vote.voterAddress, reward);
-      newTransaction.sign(signingKey);
-    }
-
-    this.transactions = [...this.transactions, ...transactions];
-    this.hash = this.calculateHash(true);
+    this.hash = this.calculateHash(this.index > 0);
     const sig = signingKey.sign(this.hash, 'base64');
     this.signature = sig.toDER('hex');
     return this;

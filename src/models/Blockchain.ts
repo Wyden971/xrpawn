@@ -8,7 +8,7 @@ import {ec as EC} from "elliptic";
 
 export class Blockchain {
   public chain: Block[] = [];
-  public static readonly difficulty: number = 1;
+  public static readonly difficulty: number = 2;
   public pendingTransactions: AvailableBlockTransactionType[];
   private miningReward: number = 100;
   static escrow = {
@@ -16,32 +16,35 @@ export class Blockchain {
     privateKey: '049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e9b6'
   }
 
-  constructor() {
-    this.chain = [this.createGenesisBlock()];
+  constructor(signingKey: EC.KeyPair, transactions: AvailableBlockTransactionType[]) {
+    this.chain = [this.createGenesisBlock(signingKey, transactions)];
     this.pendingTransactions = [];
   }
 
-  createGenesisBlock() {
-    return new Block(0, new Date().getTime(), '', []);
+  createGenesisBlock(signingKey: EC.KeyPair, transactions: AvailableBlockTransactionType[]) {
+    const block = new Block(0, new Date().getTime(), signingKey.getPublic('hex'), transactions);
+    block.sign(signingKey);
+    return block;
   }
 
   getLatestBlock() {
     return this.chain[this.chain.length - 1];
   }
 
-  generateBlock(signingKey: EC.KeyPair): Block | undefined {
-    const miningRewardAddress = signingKey.getPublic('hex');
-
-    const rewardTx = new Transaction(null, miningRewardAddress, this.miningReward);
-    this.pendingTransactions.push(rewardTx);
-
-    const block = new Block(this.chain.length, Date.now(), '', this.pendingTransactions, this.getLatestBlock().hash);
-    block.mineBlock(Blockchain.difficulty);
-    if (block.isValid(Blockchain.difficulty)) {
-      return block;
+  generateBlock(validatorAddress: string): Block | undefined {
+    const block = new Block(this.chain.length, Date.now(), validatorAddress, this.pendingTransactions, this.getLatestBlock().hash);
+    if (!block.hasValidTransactions()) {
+      throw new Error('No valid transactions');
     }
+    return block;
   }
 
+  voteAsValidator(signingKey: EC.KeyPair, block: Block) {
+    if (block.validatorAddress != signingKey.getPublic('hex'))
+      throw new Error('You cannot vote as a validator because you are not a validator');
+    block.addVote(block.vote(signingKey), this);
+    return block;
+  }
 
   minePendingTransactions(signingKey: EC.KeyPair): Block {
     if (!this.pendingTransactions.length) {
@@ -78,17 +81,46 @@ export class Blockchain {
   }
 
   getBalanceOfAddress(address: string) {
-    let balance = 0;
+    let balance: number = 0;
+    const reward = 0.01;
+    const staticFee = 0.0002;
 
     for (const block of this.chain) {
       for (const transaction of block.transactions) {
         if (transaction.type === BlockDataType.transaction) {
+          //Les frais augmente en fonction du nombre de transaction
+          const fee = block.transactions.length * staticFee;
+
           if (transaction.fromAddress === address) {
-            balance -= (transaction as Transaction).amount;
+            balance -= (transaction as Transaction).amount - fee;
           }
 
           if (transaction.toAddress === address) {
             balance += (transaction as Transaction).amount;
+          }
+
+          //On s'assure que le validateur reçoive les frais de transaction
+          if (address === block.validatorAddress) {
+            balance += fee;
+          }
+        }
+      }
+
+      //On s'assure que les votant aient tous reçu leur récompense
+      const votes = block.getVotes();
+      if (votes.length > 1) {
+        for (const vote of votes) {
+          if (block.isValidVote(vote, null) && vote.voterAddress === address) {
+            // Si le validateur ne respecte pas la block chaine, il perd ses fond en faveur des votants
+            if (vote.asValidator && vote.voterAddress !== block.validatorAddress) {
+              return 0;
+            } else {
+              balance += balance * reward;
+              balance += votes
+                .filter((itemVote) => itemVote.asValidator && vote.voterAddress !== block.validatorAddress)
+                .map((itemVote) => this.getBalanceOfAddress(itemVote.voterAddress))
+                .reduce((result, balance) => result + balance, 0) / (votes.length - 1);
+            }
           }
         }
       }
@@ -97,9 +129,10 @@ export class Blockchain {
     return balance;
   }
 
-  addBlock(newBlock: Block) {
+  addBlock(newBlock: Block, signingKey: EC.KeyPair) {
     newBlock.previousHash = this.getLatestBlock().hash;
-    newBlock.mineBlock(Blockchain.difficulty);
+    newBlock.mineBlock(Blockchain.difficulty, true);
+    newBlock.sign(signingKey);
     this.chain.push(newBlock);
   }
 
@@ -119,13 +152,18 @@ export class Blockchain {
         return false;
       }
 
-      if (currentBlock.hash !== currentBlock.calculateHash()) {
+      if (currentBlock.hash !== currentBlock.calculateHash(true)) {
         console.warn('the current block hash is invalid', currentBlock.index);
         return false;
       }
 
       if (currentBlock.previousHash !== previousBlock.hash) {
         console.warn('the current previous has doesnt match de correct  hash');
+        return false;
+      }
+
+      if (!currentBlock.hasValidVotes(this)) {
+        console.warn('Invalid votes');
         return false;
       }
     }
