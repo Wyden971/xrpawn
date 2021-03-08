@@ -113,23 +113,38 @@ export class Block {
   }
 
   getVoteResult() {
-    const result = {
-      ok: [] as BlockVote[],
-      nok: [] as BlockVote[]
-    }
+    const votes: {
+      [name: string]: BlockVote[],
+    } = {};
+
     for (const vote of this.votes) {
       if (!this.isValidVote(vote)) {
         throw new Error('You cannot get the result with invalid vote');
       }
-
-      const sig = BlockData.ec.keyFromPublic(vote.voterAddress, 'hex');
-
-      if (sig.verify(this.getVoteHash(vote.voterAddress, vote.transaction, vote.value), vote.signature)) {
-        result.ok.push(vote);
-      } else {
-        result.nok.push(vote);
-      }
+      votes[vote.value] = [...votes[vote.value], vote];
     }
+
+
+    const result = {
+      ok: [] as BlockVote[],
+      nok: [] as BlockVote[]
+    };
+
+    const orderedVotes = Object.values(votes).sort((itemsA, itemsB) => {
+      if (itemsA.length < itemsB.length) {
+        return 1;
+      } else if (itemsA.length > itemsB.length) {
+        return -1;
+      } else {
+        return 0;
+      }
+    });
+
+    result.ok = orderedVotes[0];
+    if (orderedVotes.length > 1) {
+      result.nok = orderedVotes.reduce((items, itemVotes) => ([...items, ...itemVotes]), []);
+    }
+
     return result;
   }
 
@@ -249,7 +264,7 @@ export class Block {
     const total = result.ok.reduce((result, vote) => result + vote.transaction.amount, 0);
 
     for (const vote of result.ok) {
-      if(vote.voterAddress === signingKey.getPublic('hex'))
+      if (vote.voterAddress === signingKey.getPublic('hex'))
         continue;
 
       const part = (vote.transaction.amount / total);

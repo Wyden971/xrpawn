@@ -35,11 +35,12 @@ console.log('xrpawn balance : ', xrpawn.getBalanceOfAddress(myAddress));
 const block = xrpawn.generateBlock(myKey);
 if (block) {
 
-  const tx = new Transaction(myAddress, myAddress2, xrpawn.getBalanceOfAddress(myAddress)),
-    block.addVote(block.vote(myKey, tx));
+  const tx = new Transaction(myAddress, myAddress2, xrpawn.getBalanceOfAddress(myAddress));
+  block.addVote(block.vote(myKey, tx));
   const block2 = Object.setPrototypeOf({...block}, Object.getPrototypeOf(block)) as Block;
 
-  block.addVote(block.vote(myKey2));
+  const tx2 = new Transaction(myAddress2, myAddress2, xrpawn.getBalanceOfAddress(myAddress));
+  block.addVote(block.vote(myKey2, tx2));
 
   console.log('Result : ', block.getVoteResult());
 
