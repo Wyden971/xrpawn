@@ -62,19 +62,26 @@ class Blockchain {
         const staticFee = 0.0002;
         for (const block of this.chain) {
             for (const transaction of block.transactions) {
-                if (transaction.type === BlockData_1.BlockDataType.transaction) {
-                    //Les frais augmente en fonction du nombre de transaction
-                    const fee = block.transactions.length * staticFee;
-                    if (transaction.fromAddress === address) {
-                        balance -= transaction.amount - fee;
-                    }
-                    if (transaction.toAddress === address) {
-                        balance += transaction.amount;
-                    }
-                    //On s'assure que le validateur reçoive les frais de transaction
-                    if (address === block.validatorAddress) {
-                        balance += fee;
-                    }
+                const fee = block.transactions.length * staticFee;
+                switch (transaction.type) {
+                    case BlockData_1.BlockDataType.transaction:
+                        //Les frais augmente en fonction du nombre de transaction
+                        if (transaction.fromAddress === address) {
+                            balance -= transaction.amount - fee;
+                        }
+                        if (transaction.toAddress === address) {
+                            balance += transaction.amount;
+                        }
+                        //On s'assure que le validateur reçoive les frais de transaction
+                        if (address === block.validatorAddress) {
+                            balance += fee;
+                        }
+                        break;
+                    case BlockData_1.BlockDataType.loan:
+                        if (address === transaction.fromAddress) {
+                            balance -= fee;
+                        }
+                        break;
                 }
             }
             //On s'assure que les votant aient tous reçu leur récompense
@@ -89,7 +96,7 @@ class Blockchain {
                         else {
                             balance += balance * reward;
                             balance += votes
-                                .filter((itemVote) => itemVote.asValidator && vote.voterAddress !== block.validatorAddress)
+                                .filter((itemVote) => itemVote.asValidator && itemVote.voterAddress !== block.validatorAddress)
                                 .map((itemVote) => this.getBalanceOfAddress(itemVote.voterAddress))
                                 .reduce((result, balance) => result + balance, 0) / (votes.length - 1);
                         }
@@ -104,6 +111,7 @@ class Blockchain {
         newBlock.mineBlock(Blockchain.difficulty, true);
         newBlock.sign(signingKey);
         this.chain.push(newBlock);
+        this.pendingTransactions = [];
     }
     isChainValid() {
         for (let i = 1; i < this.chain.length; i++) {

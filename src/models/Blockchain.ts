@@ -87,22 +87,31 @@ export class Blockchain {
 
     for (const block of this.chain) {
       for (const transaction of block.transactions) {
-        if (transaction.type === BlockDataType.transaction) {
-          //Les frais augmente en fonction du nombre de transaction
-          const fee = block.transactions.length * staticFee;
+        const fee = block.transactions.length * staticFee;
 
-          if (transaction.fromAddress === address) {
-            balance -= (transaction as Transaction).amount - fee;
-          }
+        switch (transaction.type) {
+          case BlockDataType.transaction:
+            //Les frais augmente en fonction du nombre de transaction
 
-          if (transaction.toAddress === address) {
-            balance += (transaction as Transaction).amount;
-          }
+            if (transaction.fromAddress === address) {
+              balance -= (transaction as Transaction).amount - fee;
+            }
 
-          //On s'assure que le validateur reçoive les frais de transaction
-          if (address === block.validatorAddress) {
-            balance += fee;
-          }
+            if (transaction.toAddress === address) {
+              balance += (transaction as Transaction).amount;
+            }
+
+            //On s'assure que le validateur reçoive les frais de transaction
+            if (address === block.validatorAddress) {
+              balance += fee;
+            }
+            break;
+
+          case BlockDataType.loan:
+            if (address === (transaction as Loan).fromAddress) {
+              balance -= fee;
+            }
+            break;
         }
       }
 
@@ -117,7 +126,7 @@ export class Blockchain {
             } else {
               balance += balance * reward;
               balance += votes
-                .filter((itemVote) => itemVote.asValidator && vote.voterAddress !== block.validatorAddress)
+                .filter((itemVote) => itemVote.asValidator && itemVote.voterAddress !== block.validatorAddress)
                 .map((itemVote) => this.getBalanceOfAddress(itemVote.voterAddress))
                 .reduce((result, balance) => result + balance, 0) / (votes.length - 1);
             }
@@ -134,6 +143,7 @@ export class Blockchain {
     newBlock.mineBlock(Blockchain.difficulty, true);
     newBlock.sign(signingKey);
     this.chain.push(newBlock);
+    this.pendingTransactions = [];
   }
 
   isChainValid() {

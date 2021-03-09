@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const Blockchain_1 = require("./models/Blockchain");
 const Transaction_1 = require("./models/Transaction");
 const elliptic_1 = require("elliptic");
+const Security_1 = require("./models/Security");
 const ec = new elliptic_1.ec('secp256k1');
 const masterKey = ec.keyFromPrivate('049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e910');
 const masterToken = masterKey.getPublic('hex');
@@ -38,11 +39,35 @@ xrpawn.addTransaction(transaction);
 const block = xrpawn.generateBlock(myAddress);
 if (block) {
     xrpawn.voteAsValidator(myKey, block);
-    // block.addVote(block.vote(myKey));
+    // block.addVote(block.vote(myKey), xrpawn); Ne peut pas revoter
     block.addVote(block.vote(myKey2), xrpawn);
     block.addVote(block.vote(myKey3), xrpawn);
     console.log('Result : ', block.getVoteResult(xrpawn));
     xrpawn.addBlock(block, myKey);
+}
+else {
+    console.log('Invalid block');
+}
+console.log('Chain Length : ', xrpawn.chain.length);
+console.log('isValid : ', xrpawn.isChainValid());
+console.log('xrpawn balance myAddress : ', xrpawn.getBalanceOfAddress(myAddress));
+console.log('xrpawn balance myAddress2 : ', xrpawn.getBalanceOfAddress(myAddress2));
+console.log('xrpawn balance myAddress3 : ', xrpawn.getBalanceOfAddress(myAddress3));
+const security = new Security_1.Security(myAddress3, {
+    name: 'PS4',
+    value: 500,
+    buyAt: 2345676543
+});
+//security.sign(myKey3);
+xrpawn.addSecurity(security, myKey3);
+const block2 = xrpawn.generateBlock(myAddress2);
+if (block2) {
+    xrpawn.voteAsValidator(myKey2, block2);
+    block2.addVote(block2.vote(myKey), xrpawn);
+    //block2.addVote(block2.vote(myKey2), xrpawn); //Ne peut pas revoter
+    block2.addVote(block2.vote(myKey3), xrpawn);
+    console.log('Result : ', block2.getVoteResult(xrpawn));
+    xrpawn.addBlock(block2, myKey2);
 }
 else {
     console.log('Invalid block');

@@ -54,7 +54,7 @@ if (block) {
 
   xrpawn.voteAsValidator(myKey, block);
 
-  // block.addVote(block.vote(myKey));
+  // block.addVote(block.vote(myKey), xrpawn); Ne peut pas revoter
   block.addVote(block.vote(myKey2), xrpawn);
   block.addVote(block.vote(myKey3), xrpawn);
 
@@ -62,6 +62,40 @@ if (block) {
   console.log('Result : ', block.getVoteResult(xrpawn));
 
   xrpawn.addBlock(block, myKey);
+} else {
+  console.log('Invalid block');
+}
+
+console.log('Chain Length : ', xrpawn.chain.length);
+console.log('isValid : ', xrpawn.isChainValid());
+console.log('xrpawn balance myAddress : ', xrpawn.getBalanceOfAddress(myAddress));
+console.log('xrpawn balance myAddress2 : ', xrpawn.getBalanceOfAddress(myAddress2));
+console.log('xrpawn balance myAddress3 : ', xrpawn.getBalanceOfAddress(myAddress3));
+
+
+const security = new Security(myAddress3, {
+  name: 'PS4',
+  value: 500,
+  buyAt: 2345676543
+});
+
+//security.sign(myKey3);
+xrpawn.addSecurity(security, myKey3);
+
+const block2 = xrpawn.generateBlock(myAddress2);
+
+if (block2) {
+
+  xrpawn.voteAsValidator(myKey2, block2);
+
+  block2.addVote(block2.vote(myKey), xrpawn);
+  //block2.addVote(block2.vote(myKey2), xrpawn); //Ne peut pas revoter
+  block2.addVote(block2.vote(myKey3), xrpawn);
+
+
+  console.log('Result : ', block2.getVoteResult(xrpawn));
+
+  xrpawn.addBlock(block2, myKey2);
 } else {
   console.log('Invalid block');
 }
