@@ -39,6 +39,11 @@ class Block {
         if (prototype)
             return Object.setPrototypeOf(object, prototype);
     }
+    static fromData(data) {
+        const block = Object.setPrototypeOf(data, Block.prototype);
+        block.transactions.map((tx) => Block.definePrototypeOfTransaction(tx));
+        return block;
+    }
     generateHash(includeVotes = false) {
         this.hash = this.calculateHash(includeVotes);
         return this;
@@ -73,12 +78,19 @@ class Block {
     isValidVote(vote, blockchain) {
         var _a;
         const keyGen = BlockData_1.BlockData.ec.keyFromPublic(vote.voterAddress, 'hex');
-        if (this.calculateHash() !== vote.value)
+        if (this.calculateHash() !== vote.value) {
+            console.error('Invalid hash');
             return false;
+        }
         const validVoteResult = keyGen.verify(this.getVoteHash(vote.voterAddress, vote.value, vote.asValidator), vote.signature);
-        if (!validVoteResult)
+        if (!validVoteResult) {
+            console.error('Invalid vote result');
             return false;
+        }
         const amount = (_a = (blockchain && blockchain.getBalanceOfAddress(vote.voterAddress))) !== null && _a !== void 0 ? _a : 1;
+        if (amount <= 0) {
+            console.error('You havent got money');
+        }
         return (amount > 0);
     }
     getVoteResult(blockchain) {
@@ -139,12 +151,13 @@ class Block {
         return sha256_1.default(`${this.index}${this.previousHash}${this.timestamp}${this.validatorAddress}${includeVotes ? JSON.stringify(this.votes) : ''}${JSON.stringify(transactions)}${includeVotes ? this.nonce : ''}`).toString();
     }
     mineBlock(difficulty, includeVotes = false) {
+        const tm = Date.now();
         console.log('Mine block... ', this.index, includeVotes, this.calculateHash(includeVotes));
         while (!this.isCorrectHash(difficulty)) {
             this.nonce++;
             this.hash = this.calculateHash(includeVotes);
         }
-        console.log('Mined block : ', this.index, this.hash, includeVotes);
+        console.log('Mined block : ', this.index, this.hash, includeVotes, `${(Date.now() - tm)} ms`);
     }
     isCorrectHash(difficulty) {
         return this.hash.substr(0, difficulty) === (new Array(difficulty + 1)).join('0');
@@ -205,6 +218,36 @@ class Block {
         const sig = signingKey.sign(this.hash, 'base64');
         this.signature = sig.toDER('hex');
         return this;
+    }
+    compare(block) {
+        if (block.hash !== this.hash || block.previousHash !== this.previousHash || block.validatorAddress !== this.validatorAddress || block.timestamp !== this.timestamp || block.nonce !== this.nonce || block.signature !== this.signature)
+            return false;
+        const badVotes = this.votes.some((vote) => {
+            return !block.votes.find((item) => item.voterAddress === vote.voterAddress && item.asValidator === vote.asValidator && item.signature === vote.signature && item.value === vote.value);
+        });
+        if (badVotes)
+            return false;
+        const transactionsMatches = this.transactions.some((tx) => {
+            return block.transactions.some((transaction) => {
+                if (tx.id !== transaction.id &&
+                    tx.signature !== transaction.signature &&
+                    tx.signature2 !== transaction.signature2 &&
+                    tx.toAddress !== transaction.toAddress &&
+                    tx.fromAddress !== transaction.fromAddress &&
+                    tx.previousHash !== transaction.previousHash &&
+                    tx.createdAt !== transaction.createdAt &&
+                    tx.updatedAt !== transaction.updatedAt &&
+                    tx.deletedAt !== transaction.deletedAt &&
+                    tx.hash !== transaction.hash &&
+                    tx.type !== transaction.type) {
+                    return true;
+                }
+                return false;
+            });
+        });
+        if (transactionsMatches)
+            return false;
+        return true;
     }
 }
 exports.Block = Block;

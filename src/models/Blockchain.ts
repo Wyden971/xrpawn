@@ -8,7 +8,7 @@ import {ec as EC} from "elliptic";
 
 export class Blockchain {
   public chain: Block[] = [];
-  public static readonly difficulty: number = 2;
+  public static readonly difficulty: number = 1;
   public pendingTransactions: AvailableBlockTransactionType[];
   private miningReward: number = 100;
   static escrow = {
@@ -27,7 +27,7 @@ export class Blockchain {
     return block;
   }
 
-  getLatestBlock() {
+  public getLatestBlock() {
     return this.chain[this.chain.length - 1];
   }
 
@@ -44,6 +44,10 @@ export class Blockchain {
       throw new Error('You cannot vote as a validator because you are not a validator');
     block.addVote(block.vote(signingKey), this);
     return block;
+  }
+
+  vote(block: Block, signingKey: EC.KeyPair) {
+    block.addVote(block.vote(signingKey), this);
   }
 
   minePendingTransactions(signingKey: EC.KeyPair): Block {
@@ -81,6 +85,7 @@ export class Blockchain {
   }
 
   getBalanceOfAddress(address: string) {
+    const tm = Date.now();
     let balance: number = 0;
     const reward = 0.01;
     const staticFee = 0.0002;
@@ -124,7 +129,9 @@ export class Blockchain {
             if (vote.asValidator && vote.voterAddress !== block.validatorAddress) {
               return 0;
             } else {
-              balance += balance * reward;
+              balance += balance * reward;  // La récompense dépend de la balance à l'instant T
+
+              // On ajoute la totalité des gains des validateur véreux aux votant
               balance += votes
                 .filter((itemVote) => itemVote.asValidator && itemVote.voterAddress !== block.validatorAddress)
                 .map((itemVote) => this.getBalanceOfAddress(itemVote.voterAddress))
@@ -135,6 +142,7 @@ export class Blockchain {
       }
     }
 
+    console.log('Balance duration : ', `${(Date.now() - tm)} ms`)
     return balance;
   }
 

@@ -3,6 +3,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.BlockData = exports.BlockDataType = void 0;
 const elliptic_1 = require("elliptic");
 const sha256_1 = __importDefault(require("crypto-js/sha256"));
 const uuid_1 = require("uuid");

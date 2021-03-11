@@ -31,6 +31,9 @@ class Blockchain {
         block.addVote(block.vote(signingKey), this);
         return block;
     }
+    vote(block, signingKey) {
+        block.addVote(block.vote(signingKey), this);
+    }
     minePendingTransactions(signingKey) {
         if (!this.pendingTransactions.length) {
             throw new Error('You doesnt have pending transactions');
@@ -57,6 +60,7 @@ class Blockchain {
         this.pendingTransactions.push(transaction);
     }
     getBalanceOfAddress(address) {
+        const tm = Date.now();
         let balance = 0;
         const reward = 0.01;
         const staticFee = 0.0002;
@@ -94,7 +98,8 @@ class Blockchain {
                             return 0;
                         }
                         else {
-                            balance += balance * reward;
+                            balance += balance * reward; // La récompense dépend de la balance à l'instant T
+                            // On ajoute la totalité des gains des validateur véreux aux votant
                             balance += votes
                                 .filter((itemVote) => itemVote.asValidator && itemVote.voterAddress !== block.validatorAddress)
                                 .map((itemVote) => this.getBalanceOfAddress(itemVote.voterAddress))
@@ -104,6 +109,7 @@ class Blockchain {
                 }
             }
         }
+        console.log('Balance duration : ', `${(Date.now() - tm)} ms`);
         return balance;
     }
     addBlock(newBlock, signingKey) {
@@ -200,7 +206,7 @@ class Blockchain {
     }
 }
 exports.Blockchain = Blockchain;
-Blockchain.difficulty = 2;
+Blockchain.difficulty = 1;
 Blockchain.escrow = {
     publicKey: '04a78f9df9d68223fc980f14b111bd7d57c279de0a257c43fa389989fd958790836c5fe4222ec084481e362c00befa3a28cf7f1df76819d311d07b129ad8c7c2f5',
     privateKey: '049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e9b6'

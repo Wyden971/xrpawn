@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.User = void 0;
 const elliptic_1 = require("elliptic");
 const BlockData_1 = require("./BlockData");
 const ec = new elliptic_1.ec('secp256k1');

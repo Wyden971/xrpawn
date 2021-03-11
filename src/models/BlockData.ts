@@ -1,6 +1,11 @@
 import {ec as EC} from "elliptic";
 import SHA256 from "crypto-js/sha256";
 import {v4 as uuid4} from 'uuid'
+import {AvailableBlockTransactionType} from "./Block";
+import {Transaction} from "./Transaction";
+import {Security} from "./Security";
+import {Loan} from "./Loan";
+import {User} from "./User";
 
 export enum BlockDataType {
   "transaction" = "transaction",
@@ -8,6 +13,7 @@ export enum BlockDataType {
   "user" = "user",
   "loan" = "loan",
 }
+
 
 export abstract class BlockData<T> {
   static ec = new EC('secp256k1');

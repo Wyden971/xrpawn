@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.Transaction = void 0;
 const BlockData_1 = require("./BlockData");
 class Transaction extends BlockData_1.BlockData {
     constructor(fromAddress, toAddress, amount) {

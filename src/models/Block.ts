@@ -47,6 +47,12 @@ export class Block {
       return Object.setPrototypeOf(object, prototype);
   }
 
+  static fromData(data: any): Block {
+    const block: Block = Object.setPrototypeOf(data, Block.prototype);
+    block.transactions.map((tx) => Block.definePrototypeOfTransaction(tx));
+    return block;
+  }
+
   constructor(index: number, timestamp: number, validatorAddress: string, transactions: AvailableBlockTransactionType[], previousHash = '') {
     this.index = index;
     this.timestamp = timestamp;
@@ -98,15 +104,22 @@ export class Block {
   isValidVote(vote: BlockVote, blockchain: Blockchain | null) {
     const keyGen = BlockData.ec.keyFromPublic(vote.voterAddress, 'hex');
 
-    if (this.calculateHash() !== vote.value)
+    if (this.calculateHash() !== vote.value) {
+      console.error('Invalid hash');
       return false;
+    }
 
     const validVoteResult = keyGen.verify(this.getVoteHash(vote.voterAddress, vote.value, vote.asValidator), vote.signature);
-    if (!validVoteResult)
+    if (!validVoteResult) {
+      console.error('Invalid vote result');
       return false;
+    }
 
     const amount = (blockchain && blockchain.getBalanceOfAddress(vote.voterAddress)) ?? 1;
 
+    if (amount <= 0) {
+      console.error('You havent got money');
+    }
     return (amount > 0);
   }
 
@@ -189,12 +202,13 @@ export class Block {
   }
 
   mineBlock(difficulty: number, includeVotes: boolean = false) {
+    const tm = Date.now();
     console.log('Mine block... ', this.index, includeVotes, this.calculateHash(includeVotes));
     while (!this.isCorrectHash(difficulty)) {
       this.nonce++;
       this.hash = this.calculateHash(includeVotes);
     }
-    console.log('Mined block : ', this.index, this.hash, includeVotes);
+    console.log('Mined block : ', this.index, this.hash, includeVotes, `${(Date.now() - tm)} ms`);
   }
 
   isCorrectHash(difficulty: number) {
@@ -266,6 +280,44 @@ export class Block {
     const sig = signingKey.sign(this.hash, 'base64');
     this.signature = sig.toDER('hex');
     return this;
+  }
+
+  compare(block: Block) {
+    if (block.hash !== this.hash || block.previousHash !== this.previousHash || block.validatorAddress !== this.validatorAddress || block.timestamp !== this.timestamp || block.nonce !== this.nonce || block.signature !== this.signature)
+      return false;
+
+    const badVotes = this.votes.some((vote) => {
+      return !block.votes.find((item) => item.voterAddress === vote.voterAddress && item.asValidator === vote.asValidator && item.signature === vote.signature && item.value === vote.value);
+    });
+
+    if (badVotes)
+      return false;
+
+    const transactionsMatches = this.transactions.some((tx) => {
+      return block.transactions.some((transaction) => {
+        if (
+          tx.id !== transaction.id &&
+          tx.signature !== transaction.signature &&
+          tx.signature2 !== transaction.signature2 &&
+          tx.toAddress !== transaction.toAddress &&
+          tx.fromAddress !== transaction.fromAddress &&
+          tx.previousHash !== transaction.previousHash &&
+          tx.createdAt !== transaction.createdAt &&
+          tx.updatedAt !== transaction.updatedAt &&
+          tx.deletedAt !== transaction.deletedAt &&
+          tx.hash !== transaction.hash &&
+          tx.type !== transaction.type
+        ) {
+          return true;
+        }
+        return false;
+      });
+    });
+
+    if (transactionsMatches)
+      return false;
+
+    return true;
   }
 
 }
