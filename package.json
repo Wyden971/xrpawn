@@ -7,6 +7,7 @@
     "build": "tsc --build tsconfig-electron.json",
     "start": "tsc && node dist/app.js",
     "react": "react-scripts start",
+    "eject": "react-scripts eject",
     "electron": "electron .",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
