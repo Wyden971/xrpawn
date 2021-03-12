@@ -3,7 +3,7 @@ import https from 'https';
 import path from 'path';
 
 // @ts-ignore
-import {Router as WampRouter, Session} from '../WampRouter/';
+import {Router as WampRouter, Session} from '../WampRouter';
 import {ec as EC} from "elliptic";
 import SHA256 from "crypto-js/sha256";
 

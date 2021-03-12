@@ -85,7 +85,7 @@ export class Blockchain extends EventEmitter {
     return super.on(event, listener);
   }
 
-  private createBlocksTableIfNotExists(): Promise<any> {
+  private createBlocksTableIfNotExists(): Promise<void> {
     console.log('create blocks database');
     return new Promise((resolve, reject) => {
       const sql = `
@@ -112,7 +112,7 @@ export class Blockchain extends EventEmitter {
     });
   }
 
-  private createBalancesTableIfNotExists(): Promise<any> {
+  private createBalancesTableIfNotExists(): Promise<void> {
     console.log('create balances database');
     return new Promise((resolve, reject) => {
       const sql = `
@@ -135,7 +135,7 @@ export class Blockchain extends EventEmitter {
     });
   }
 
-  private createTransactionsTableIfNotExists(): Promise<any> {
+  private createTransactionsTableIfNotExists(): Promise<void> {
     console.log('create transactions database');
     return new Promise((resolve, reject) => {
       const sql = `
@@ -265,14 +265,14 @@ export class Blockchain extends EventEmitter {
           } else if (row) {
             resolve(Block.definePrototypeOfTransaction(row));
           } else {
-            resolve();
+            resolve(undefined);
           }
         })
       })
     })
   }
 
-  addTransactionToDatabase(transaction: AvailableBlockTransactionType): Promise<any> {
+  addTransactionToDatabase(transaction: AvailableBlockTransactionType): Promise<void> {
     if (!transaction.isValid())
       return Promise.reject();
 
@@ -292,7 +292,7 @@ export class Blockchain extends EventEmitter {
     });
   }
 
-  getGenesisBlock(): Promise<Block | undefined> {
+  getGenesisBlock(): Promise<Block | void> {
     console.log('Check Genesis Block exists');
     return new Promise((resolve, reject) => {
       const genesisBlockSql = `SELECT * FROM \`${Blockchain.TABLE_BLOCKS}\` WHERE id=0`
@@ -343,7 +343,7 @@ export class Blockchain extends EventEmitter {
     });
   }
 
-  generateBalanceDatabase(): Promise<any> {
+  generateBalanceDatabase(): Promise<void> {
     return this.checkDatabaseBlocks()
       .then((balances) => {
         if (!balances)
@@ -520,7 +520,7 @@ export class Blockchain extends EventEmitter {
     return Promise.all([this.dropBlocksTable(), this.dropBalancesTable()]);
   }
 
-  dropBlocksTable() {
+  dropBlocksTable(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db.serialize(() => {
         this.db.run(`DROP TABLE \`${Blockchain.TABLE_BLOCKS}\`;`, (err) => {
@@ -534,7 +534,7 @@ export class Blockchain extends EventEmitter {
     });
   }
 
-  dropBalancesTable() {
+  dropBalancesTable(): Promise<void> {
     return new Promise((resolve, reject) => {
       this.db.serialize(() => {
         this.db.run(`DROP TABLE \`${Blockchain.TABLE_BALANCES}\`;`, (err) => {
@@ -557,7 +557,7 @@ export class Blockchain extends EventEmitter {
           if (row)
             resolve(Block.fromData(row));
           else
-            resolve();
+            resolve(undefined);
         }
       })
     })
@@ -597,7 +597,7 @@ export class Blockchain extends EventEmitter {
     return block.addVote(block.vote(signingKey ?? this.signingKey));
   }
 
-  async cleanPendingTransactions() {
+  async cleanPendingTransactions(): Promise<void> {
     console.log('cleanPendingTransactions');
     return new Promise((resolve, reject) => {
       this.db.serialize(() => {
@@ -636,7 +636,7 @@ export class Blockchain extends EventEmitter {
                   console.log('insert.query : ', insert.query, insert.variables)
                   reject(err);
                 } else {
-                  resolve();
+                  resolve(newBlock);
                 }
               })
             })))
@@ -654,7 +654,7 @@ export class Blockchain extends EventEmitter {
                   console.log('err : ', err);
                   reject(err);
                 } else {
-                  resolve();
+                  resolve(newBlock);
                 }
               })
             )))

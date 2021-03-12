@@ -4,12 +4,13 @@ import {Transaction} from "./models/Transaction";
 import {ec as EC} from 'elliptic';
 import {Security} from "./models/Security";
 import {Loan} from "./models/Loan";
-import autobahn from 'autobahn';
-import program from 'commander';
+import * as autobahn from 'autobahn';
+import {program} from 'commander';
 import {v4 as uuid4} from 'uuid';
 import {Server} from './models/Server';
 import {Client} from "./models/Client";
 import {Session} from "./WampRouter";
+import {app, BrowserWindow, ipcMain} from "electron";
 
 program
   .option('-m, --mode <mode>', 'Choix du mode', 'server')
@@ -30,9 +31,43 @@ const myAddress2 = myKey2.getPublic('hex');
 const myKey3 = ec.keyFromPrivate('049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e9b8');
 const myAddress3 = myKey3.getPublic('hex');
 
-console.log()
+console.log('starting');
 
 if (options.mode === 'server') {
+
+  console.log('start server');
+
+  const createWindow = () => {
+    const win = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      webPreferences: {
+        nodeIntegration: false
+      }
+    })
+    win.webContents.openDevTools();
+    win.loadURL('http://localhost:3000')
+  };
+
+  app.whenReady().then(createWindow)
+
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit()
+    }
+  })
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
+  })
+
+  ipcMain.handle('perform-action', (event, arg) => {
+    console.log('ok ca marche : ', arg);
+  });
+
+  /*
   console.log('Start server');
   const server = new Server(myKey2, 8889);
 
@@ -72,6 +107,8 @@ if (options.mode === 'server') {
     }
 
   });
+
+   */
   /*
     server.getRouter().subscribeTopic('block', (publicationId, session) => {
       console.log('new block');
@@ -111,7 +148,7 @@ if (options.mode === 'server') {
     });
   */
 
-  server.start();
+  // server.start();
 } else if (options.mode === 'client') {
   console.log('Start client');
   const masterKey = ec.keyFromPrivate('049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e910');
