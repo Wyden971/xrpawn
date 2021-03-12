@@ -6,7 +6,7 @@ import {Security} from "./models/Security";
 import {Loan} from "./models/Loan";
 import autobahn from 'autobahn';
 import program from 'commander';
-
+import {v4 as uuid4} from 'uuid';
 import {Server} from './models/Server';
 import {Client} from "./models/Client";
 import {Session} from "./WampRouter";
@@ -21,7 +21,7 @@ const ec = new EC('secp256k1');
 const masterKey = ec.keyFromPrivate('049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e910');
 const masterToken = masterKey.getPublic('hex');
 
-const myKey = ec.keyFromPrivate('049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e9b6');
+const myKey = ec.keyFromPrivate('049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e9b5');
 const myAddress = myKey.getPublic('hex');
 
 const myKey2 = ec.keyFromPrivate('049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e9b7');
@@ -30,68 +30,86 @@ const myAddress2 = myKey2.getPublic('hex');
 const myKey3 = ec.keyFromPrivate('049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e9b8');
 const myAddress3 = myKey3.getPublic('hex');
 
+console.log()
+
 if (options.mode === 'server') {
   console.log('Start server');
-  const server = new Server(myKey, 8889);
+  const server = new Server(myKey2, 8889);
 
-  const xrpawn = new Blockchain(myKey, [
-    (new Transaction(masterToken, myAddress, 30000)),
-    (new Transaction(masterToken, myAddress2, 2453)),
-    (new Transaction(masterToken, myAddress3, 1000)),
-  ]);
+  const xrpawn = new Blockchain(myKey2);
+  xrpawn.on('ready', async () => {
+    console.log('Blochain ready : ', xrpawn.getAddress());
+    const balance = xrpawn.getBalance();
+    console.log('Balance : ', balance);
 
-  for (var i = 0; i < 100; i++) {
-    const tx = new Transaction(myAddress, myAddress2, 10);
-    tx.sign(myKey);
-    xrpawn.addTransaction(tx);
-    const block = xrpawn.generateBlock(myAddress3);
+    for (var i = 0; i < 1; i++) {
+      const tx = new Transaction(myAddress2, myAddress, 10, uuid4());
+      tx.sign(myKey2);
+      await xrpawn.addTransaction(tx);
+      console.log('\n\n\n');
+    }
+
+
+    console.log('Ready to add block');
+    const block = await xrpawn.generateBlock(myAddress3);
 
     if (block) {
-      xrpawn.voteAsValidator(myKey3, block);
+      block.validatorAddress = myAddress3;
+      console.log('vote');
+      await xrpawn.voteAsValidator(block, myKey3);
+
+      console.log('validators  vote');
       xrpawn.vote(block, myKey2);
       xrpawn.vote(block, myKey);
-      xrpawn.addBlock(block, myKey3);
-    }
-  }
 
-  server.getRouter().subscribeTopic('block', (publicationId, session) => {
-    console.log('new block');
-  });
-
-  server.getRouter().subscribeTopic('chain', (publicationId, session, chain: any) => {
-    console.log('chain :', chain);
-  });
-
-  server.getRouter().registerRPC('check', (id, session, lastBlockHash) => {
-    return xrpawn.getLatestBlock().hash === lastBlockHash;
-  })
-
-  server.getRouter().registerRPC('sync', (id, session, index: number, blocks: Block[]) => {
-    const maxLength = (index + (blocks.length || 2));
-
-    console.log('sync : ', index, blocks.length, maxLength);
-
-    for (let i = index; i < xrpawn.chain.length && i < maxLength; i++) {
-      const currentBlock = xrpawn.chain[i];
-      for (const blockData of blocks) {
-        const block = Block.fromData(blockData);
-        console.log('block : ', block);
-        if (!currentBlock.compare(block)) {
-          return {
-            blocks: xrpawn.chain.slice(index, blocks.length),
-            index,
-            done: (index + maxLength) >= xrpawn.chain.length
-          };
-        }
+      console.log('add');
+      console.log('block : ', block);
+      try {
+        await xrpawn.addBlock(block, myKey3);
+      }catch(e){
+        console.error(e);
       }
     }
-    return {
-      blocks: [],
-      index,
-      done: maxLength >= xrpawn.chain.length
-    };
-  });
 
+  });
+  /*
+    server.getRouter().subscribeTopic('block', (publicationId, session) => {
+      console.log('new block');
+    });
+
+    server.getRouter().subscribeTopic('chain', (publicationId, session, chain: any) => {
+      console.log('chain :', chain);
+    });
+
+    server.getRouter().registerRPC('check', (id, session, lastBlockHash) => {
+      return xrpawn.getLatestBlock().hash === lastBlockHash;
+    })
+
+    server.getRouter().registerRPC('sync', (id, session, index: number, blocks: Block[]) => {
+      const maxLength = (index + (blocks.length || 2));
+
+      console.log('sync : ', index, blocks.length, maxLength);
+
+      for (let i = index; i < xrpawn.chain.length && i < maxLength; i++) {
+        const currentBlock = xrpawn.chain[i];
+        for (const blockData of blocks) {
+          const block = Block.fromData(blockData);
+          if (!currentBlock.compare(block)) {
+            return {
+              blocks: xrpawn.chain.slice(index, blocks.length),
+              index,
+              done: (index + maxLength) >= xrpawn.chain.length
+            };
+          }
+        }
+      }
+      return {
+        blocks: [],
+        index,
+        done: maxLength >= xrpawn.chain.length
+      };
+    });
+  */
 
   server.start();
 } else if (options.mode === 'client') {
@@ -100,11 +118,7 @@ if (options.mode === 'server') {
   const client = new Client(masterKey, '127.0.0.1', 8889);
 
 
-  const xrpawn = new Blockchain(myKey, [
-    (new Transaction(masterToken, myAddress, 30000)),
-    (new Transaction(masterToken, myAddress2, 2453)),
-    (new Transaction(masterToken, myAddress3, 1000)),
-  ]);
+  const xrpawn = new Blockchain(myKey);
 
   function syncChain(session: autobahn.Session, syncIndex = 0): Promise<void> {
     return new Promise((resolve, reject) => {

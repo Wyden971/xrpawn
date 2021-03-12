@@ -13,8 +13,8 @@ export class Security extends BlockData<SecurityData> implements SecurityData {
   public type = BlockDataType.security;
   public description: any;
 
-  constructor(fromAddress: string, description: any, id?: string, createdAt: number = Date.now()) {
-    super(fromAddress);
+  constructor(fromAddress: string, description: any, id: string) {
+    super(fromAddress, fromAddress, id);
     this.description = description;
   }
 

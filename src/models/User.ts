@@ -8,6 +8,7 @@ const ec = new EC('secp256k1');
 
 export interface UserData {
   profilePicture: string;
+  companyName: string;
   firstName: string;
   lastName: string;
   dateOfBirth: string;
@@ -22,6 +23,7 @@ export interface UserData {
 export class User extends BlockData<UserData> implements UserData {
   public type = BlockDataType.user;
   public profilePicture: string;
+  public companyName: string;
   public firstName: string;
   public lastName: string;
   public dateOfBirth: string;
@@ -32,9 +34,10 @@ export class User extends BlockData<UserData> implements UserData {
   public phone: string;
   public additionalData: any;
 
-  constructor(fromAddress: string, data: UserData) {
-    super(fromAddress);
+  constructor(fromAddress: string, data: UserData, id: string) {
+    super(fromAddress, fromAddress, id);
     this.profilePicture = data.profilePicture;
+    this.companyName = data.companyName;
     this.firstName = data.firstName;
     this.lastName = data.lastName;
     this.dateOfBirth = data.dateOfBirth;
@@ -49,6 +52,7 @@ export class User extends BlockData<UserData> implements UserData {
   getData(): UserData {
     return {
       profilePicture: this.profilePicture,
+      companyName: this.companyName,
       firstName: this.firstName,
       lastName: this.firstName,
       dateOfBirth: this.dateOfBirth,

@@ -31,9 +31,9 @@ export class Loan extends BlockData<LoanData> implements LoanData {
   public acceptedAt?: number;
   public refusedAt?: number;
 
-  constructor(fromAddress: string, toAddress: string, data: LoanData) {
+  constructor(fromAddress: string, toAddress: string, data: LoanData, id: string) {
 
-    super(fromAddress, toAddress);
+    super(fromAddress, toAddress, id);
 
     this.securityId = data.securityId;
     this.expiresAt = data.expiresAt;
