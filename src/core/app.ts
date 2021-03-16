@@ -11,6 +11,35 @@ import {Server} from './models/Server';
 import {Client} from "./models/Client";
 import {Session} from "./WampRouter";
 import {app, BrowserWindow, ipcMain} from "electron";
+import * as path from 'path';
+import {links} from "./links";
+import * as vm from 'vm';
+import {Contract} from './Contract';
+
+
+const ec = new EC('secp256k1');
+const masterKey = ec.keyFromPrivate('049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e910');
+const masterToken = masterKey.getPublic('hex');
+
+(async () => {
+  const contract = new Contract(masterToken, {a: 1234}, 'class SellingCarToWendy{object="test";price=1000;propose(){assert(owner!==fromAddress&&amount>=this.price);owner=fromAddress;transfert(\'test\',345)}getBalanceOfWendy(){return balances.test}}\n' +
+    'exports=SellingCarToWendy');
+  const blockchain = {
+    getBalanceOfAddress: async (address: string) => {
+      return new Promise((resolve) => resolve(456));
+    }
+  };
+  const result = await contract.execute(blockchain, 'propose', 'propose', [], 0, 1000);
+  console.log('result : ', result);
+
+  const result2 = await contract.execute(blockchain, 'toto', 'getBalanceOfWendy', [], 0, 0);
+  console.log('result2 : ', result2);
+  console.log('size : ', contract.calculateSize());
+})();
+/*
+
+const result = vm.compileFunction('var a = 0;return a;');
+console.log('vm : ', result());
 
 program
   .option('-m, --mode <mode>', 'Choix du mode', 'server')
@@ -33,43 +62,19 @@ const myAddress3 = myKey3.getPublic('hex');
 
 console.log('starting');
 
+export function test() {
+  console.log('test ok');
+}
+
+try {
+  require('electron-reload')(path.join(__dirname, '../build'))
+} catch (e) {
+  console.error('e : ', e);
+}
+
 if (options.mode === 'server') {
 
   console.log('start server');
-
-  const createWindow = () => {
-    const win = new BrowserWindow({
-      width: 1200,
-      height: 800,
-      webPreferences: {
-        nodeIntegration: false
-      }
-    })
-    win.webContents.openDevTools();
-    win.loadURL('http://localhost:3000')
-  };
-
-  app.whenReady().then(createWindow)
-
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-      app.quit()
-    }
-  })
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
-    }
-  })
-
-  ipcMain.handle('perform-action', (event, arg) => {
-    console.log('ok ca marche : ', arg);
-  });
-
-  /*
-  console.log('Start server');
-  const server = new Server(myKey2, 8889);
 
   const xrpawn = new Blockchain(myKey2);
   xrpawn.on('ready', async () => {
@@ -77,8 +82,8 @@ if (options.mode === 'server') {
     const balance = xrpawn.getBalance();
     console.log('Balance : ', balance);
 
-    for (var i = 0; i < 1; i++) {
-      const tx = new Transaction(myAddress2, myAddress, 10, uuid4());
+    for (var i = 0; i < 10; i++) {
+      const tx = new Transaction(myAddress2, myAddress, Math.round(Math.random() * 1000), uuid4());
       tx.sign(myKey2);
       await xrpawn.addTransaction(tx);
       console.log('\n\n\n');
@@ -101,55 +106,93 @@ if (options.mode === 'server') {
       console.log('block : ', block);
       try {
         await xrpawn.addBlock(block, myKey3);
-      }catch(e){
+      } catch (e) {
         console.error(e);
       }
     }
 
   });
 
-   */
-  /*
-    server.getRouter().subscribeTopic('block', (publicationId, session) => {
-      console.log('new block');
-    });
-
-    server.getRouter().subscribeTopic('chain', (publicationId, session, chain: any) => {
-      console.log('chain :', chain);
-    });
-
-    server.getRouter().registerRPC('check', (id, session, lastBlockHash) => {
-      return xrpawn.getLatestBlock().hash === lastBlockHash;
+  const createWindow = () => {
+    links(xrpawn);
+    const win = new BrowserWindow({
+      width: 1200,
+      height: 800,
+      webPreferences: {
+        nodeIntegration: true,
+        enableRemoteModule: true,
+        preload: path.join(__dirname, 'preload.js')
+      }
     })
+    win.webContents.openDevTools();
+    win.loadFile(path.join(__dirname, '../build/index.html'));
 
-    server.getRouter().registerRPC('sync', (id, session, index: number, blocks: Block[]) => {
-      const maxLength = (index + (blocks.length || 2));
+  };
 
-      console.log('sync : ', index, blocks.length, maxLength);
+  app.whenReady().then(createWindow)
 
-      for (let i = index; i < xrpawn.chain.length && i < maxLength; i++) {
-        const currentBlock = xrpawn.chain[i];
-        for (const blockData of blocks) {
-          const block = Block.fromData(blockData);
-          if (!currentBlock.compare(block)) {
-            return {
-              blocks: xrpawn.chain.slice(index, blocks.length),
-              index,
-              done: (index + maxLength) >= xrpawn.chain.length
-            };
-          }
+  app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+      app.quit()
+    }
+  })
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+      createWindow()
+    }
+  })
+*/
+
+
+/*
+console.log('Start server');
+const server = new Server(myKey2, 8889);
+
+
+
+ */
+/*
+  server.getRouter().subscribeTopic('block', (publicationId, session) => {
+    console.log('new block');
+  });
+
+  server.getRouter().subscribeTopic('chain', (publicationId, session, chain: any) => {
+    console.log('chain :', chain);
+  });
+
+  server.getRouter().registerRPC('check', (id, session, lastBlockHash) => {
+    return xrpawn.getLatestBlock().hash === lastBlockHash;
+  })
+
+  server.getRouter().registerRPC('sync', (id, session, index: number, blocks: Block[]) => {
+    const maxLength = (index + (blocks.length || 2));
+
+    console.log('sync : ', index, blocks.length, maxLength);
+
+    for (let i = index; i < xrpawn.chain.length && i < maxLength; i++) {
+      const currentBlock = xrpawn.chain[i];
+      for (const blockData of blocks) {
+        const block = Block.fromData(blockData);
+        if (!currentBlock.compare(block)) {
+          return {
+            blocks: xrpawn.chain.slice(index, blocks.length),
+            index,
+            done: (index + maxLength) >= xrpawn.chain.length
+          };
         }
       }
-      return {
-        blocks: [],
-        index,
-        done: maxLength >= xrpawn.chain.length
-      };
-    });
-  */
+    }
+    return {
+      blocks: [],
+      index,
+      done: maxLength >= xrpawn.chain.length
+    };
+  });
+*/
 
-  // server.start();
-} else if (options.mode === 'client') {
+// server.start();
+/*} else if (options.mode === 'client') {
   console.log('Start client');
   const masterKey = ec.keyFromPrivate('049589f0c3a1b31e7d55379bf3ea66de62bed7dad6c247cc8ecf30bed939e910');
   const client = new Client(masterKey, '127.0.0.1', 8889);
@@ -186,16 +229,18 @@ if (options.mode === 'server') {
 
   client
     .connect()
-    .then((session) => {
-      syncChain(session)
-        .then(() => console.log('sync done'))
-        .catch((err) => {
-          console.error(err);
-        })
-    })
+  .then((session) => {
+    syncChain(session)
+      .then(() => console.log('sync done'))
+      .catch((err) => {
+        console.error(err);
+      })
+  })
 
 
 }
+*/
+
 /*
 
 

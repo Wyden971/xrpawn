@@ -207,13 +207,50 @@ export class Blockchain extends EventEmitter {
     });
   }
 
-  getPendingTransactions(): Promise<AvailableBlockTransactionType[]> {
+  getPendingTransactions(offset: number = 0, limit: number = -1): Promise<AvailableBlockTransactionType[]> {
     return new Promise((resolve, reject) => {
-      this.db.all(`SELECT * FROM \`${Blockchain.TABLE_PENDING_TRANSACTIONS}\``, (err, rows) => {
+      this.db.all(`SELECT * FROM \`${Blockchain.TABLE_PENDING_TRANSACTIONS}\` ${limit > 0 ? 'LIMIT ' + offset + ',' + limit : ''}`, (err, rows) => {
         if (err) {
           reject(err);
         } else {
           resolve(rows.map((row) => Block.definePrototypeOfTransaction(row)));
+        }
+      })
+    })
+  }
+
+
+  getTransactions(offset: number = 0, limit: number = 10): Promise<AvailableBlockTransactionType[]> {
+    return new Promise((resolve, reject) => {
+      this.db.all(`SELECT * FROM \`${Blockchain.TABLE_TRANSACTIONS}\` WHERE type='transaction' AND fromAddress='${this.getAddress()}' LIMIT ${offset},${limit}`, (err, rows) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(rows.map((row) => Block.definePrototypeOfTransaction(row)));
+        }
+      })
+    })
+  }
+
+  countTransactions(): Promise<number> {
+    return new Promise((resolve, reject) => {
+      this.db.get(`SELECT COUNT(*) as ct FROM \`${Blockchain.TABLE_TRANSACTIONS}\` WHERE type='transaction' AND fromAddress='${this.getAddress()}' LIMIT 1`, (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row.ct);
+        }
+      })
+    })
+  }
+
+  countPendingTransactions(): Promise<number> {
+    return new Promise((resolve, reject) => {
+      this.db.get(`SELECT COUNT(*) as ct FROM \`${Blockchain.TABLE_PENDING_TRANSACTIONS}\` WHERE type='transaction' LIMIT 1`, (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(row.ct);
         }
       })
     })

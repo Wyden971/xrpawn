@@ -17,14 +17,16 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": true,
-    "jsx": "react-jsx"
+    "noEmit": false,
+    "jsx": "react-jsx",
+    "baseUrl": "."
   },
   "include": [
-    "src/ui",
-    "src/index.tsx"
+    "src/ui/**/*",
+    "src/ui/index.tsx"
   ],
   "exclude": [
-    "src/core"
+    "src/core/**/*",
+    "node_modules"
   ]
 }

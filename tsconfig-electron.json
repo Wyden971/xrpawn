@@ -75,13 +75,16 @@
     /* Disallow inconsistently-cased references to the same file. */
   },
   "lib": [
-    "es2015"
+    "es2015",
+    "dom",
+    "dom.iterable"
   ],
   "exclude": [
-    "./src/ui",
-    "./src/index.tsx"
+    "./src/ui/**/*.ts",
+    "./src/ui/index.tsx",
+    "./src/ui/react-app-env.d.ts"
   ],
   "include": [
-    "./src/core"
+    "./src/core/**/*.ts"
   ]
 }
